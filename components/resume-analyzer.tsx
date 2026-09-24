@@ -17,7 +17,42 @@ export function ResumeAnalyzer() {
   const [error, setError] = useState('')
 
   function handleFile(nextFile?: File) { if (!nextFile) return; setError(''); if (nextFile.type !== 'application/pdf') { setError('Please choose a PDF file.'); return } if (nextFile.size > 10 * 1024 * 1024) { setError('Your PDF must be smaller than 10 MB.'); return } setFile(nextFile); setAnalysis(null) }
-  function analyze() { if (!file || !jobDescription.trim()) { setError('Add a PDF resume and paste the job description to continue.'); return } setError(''); setLoading(true); setAnalysis(null); window.setTimeout(() => { setAnalysis(mockAnalysis); setLoading(false) }, 1200) }
+  async function analyze() {
+  if (!file || !jobDescription.trim()) {
+    setError('Add a PDF resume and paste the job description to continue.')
+    return
+  }
+
+  setError('')
+  setLoading(true)
+  setAnalysis(null)
+
+  try {
+    const formData = new FormData()
+    formData.append('resume', file)
+    formData.append('job_description', jobDescription)
+
+    const response = await fetch('http://127.0.0.1:8000/analyze', {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error('Analysis failed')
+    }
+
+    const result: Analysis = await response.json()
+
+    setAnalysis(result)
+  } catch (error) {
+    console.error(error)
+    setError(
+      'Could not connect to the AI analysis server. Make sure the Python backend is running.'
+    )
+  } finally {
+    setLoading(false)
+  }
+}
 
   return <main className="min-h-screen bg-background"><header className="border-b bg-card/80"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10"><Link href="/" className="flex items-center gap-3 font-semibold tracking-tight"><span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Sparkles className="size-4" /></span><span className="text-lg">Resume<span className="text-primary">AI</span></span></Link><Link href="/" className="text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-2 inline size-4" />Back home</Link></div></header><div className="mx-auto max-w-7xl px-6 py-10 lg:px-10 lg:py-14"><div className="mb-10"><p className="text-sm font-semibold uppercase tracking-widest text-primary">Resume analyzer</p><h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">Find your edge for the role.</h1><p className="mt-3 max-w-2xl text-muted-foreground">Upload your resume and paste a job description. We&apos;ll surface the signal that matters most.</p></div><div className="grid gap-8 lg:grid-cols-[.9fr_1.1fr]"><section className="rounded-2xl border bg-card p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="font-semibold">Your inputs</h2><p className="mt-1 text-sm text-muted-foreground">Everything stays in your browser for this demo.</p></div><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">Step 1 of 2</span></div><div className="mt-7"><label className="text-sm font-medium" htmlFor="resume-upload">Resume PDF</label>{file ? <div className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><FileText className="size-5 text-emerald-600" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-emerald-950">{file.name}</p><p className="text-xs text-emerald-700">{(file.size / 1024 / 1024).toFixed(2)} MB · Ready to analyze</p></div><button aria-label="Remove resume" onClick={() => setFile(null)} className="text-emerald-700 hover:text-emerald-950"><X className="size-4" /></button></div> : <button type="button" onClick={() => inputRef.current?.click()} className="mt-2 flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 px-6 py-10 text-center transition-colors hover:border-primary hover:bg-primary/5"><span className="flex size-11 items-center justify-center rounded-xl bg-card text-primary shadow-sm"><Upload className="size-5" /></span><span className="mt-3 text-sm font-medium">Drop your resume here or browse</span><span className="mt-1 text-xs text-muted-foreground">PDF only · Max 10 MB</span></button>}<input ref={inputRef} id="resume-upload" type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(event) => handleFile(event.target.files?.[0])} /></div><div className="mt-7"><label className="text-sm font-medium" htmlFor="job-description">Job description</label><textarea id="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} placeholder="Paste the job description you&apos;re applying for..." className="mt-2 min-h-52 w-full resize-y rounded-xl border bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" /><p className="mt-2 text-right text-xs text-muted-foreground">{jobDescription.length} characters</p></div>{error && <div role="alert" className="mt-5 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><AlertCircle className="mt-0.5 size-4 shrink-0" />{error}</div>}<Button className="mt-6 w-full" size="lg" onClick={analyze} disabled={loading}>{loading ? <><Loader2 data-icon="inline-start" className="animate-spin" />Analyzing your fit...</> : <>Analyze resume <Target data-icon="inline-end" /></>}</Button></section><section className="min-h-[540px] rounded-2xl border bg-card p-6 shadow-sm lg:p-8">{loading ? <LoadingState /> : analysis ? <Results analysis={analysis} /> : <EmptyState />}</section></div></div></main>
 }
